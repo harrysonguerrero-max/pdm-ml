@@ -1,65 +1,45 @@
 """
-config.py
-=========
-Centralised configuration using Pydantic Settings.
-
-Design decision:
-    All pipeline parameters live here — no magic numbers scattered
-    across modules. Every module receives a Config object, never
-    reads environment variables directly.
+Centralized configuration using Pydantic Settings.
+Values are loaded from .env file — no hardcoded credentials.
 """
-
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class TrainConfig(BaseModel):
-    """Training pipeline configuration."""
-
-    # Paths
-    data_dir:   Path = Field(default=Path("data/raw"))
-    output_dir: Path = Field(default=Path("data/processed"))
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # MLflow
-    experiment_name:  str   = Field(default="pdm-predictive-maintenance")
-    model_name:       str   = Field(default="pdm-failure-predictor")
-    mlflow_tracking_uri: str = Field(default="http://localhost:5000")
+    mlflow_tracking_uri:    str  = "http://localhost:5000"
+    mlflow_experiment_name: str  = "predictive-maintenance"
+    model_registry_name:    str  = "pdm-xgboost"
+    model_stage:            str  = "Production"
 
-    # Labeling
-    window_hours: int = Field(default=24, ge=1, le=168,
-                              description="Hours ahead to predict failure")
+    # Paths
+    data_raw_path:       Path = Path("data/raw")
+    data_processed_path: Path = Path("data/processed")
 
-    # Feature engineering
-    rolling_windows: list[int] = Field(default=[3, 24],
-                                       description="Rolling window sizes in hours")
-    lag_hours:       list[int] = Field(default=[1, 2, 3],
-                                       description="Lag feature offsets in hours")
+    # Training
+    train_cutoff_date:          str   = "2015-10-01"
+    prediction_window_hours:    int   = 24
+    promotion_pr_auc_threshold: float = 0.50
 
-    # Temporal split
-    cutoff_date: str = Field(default="2015-10-01",
-                             description="ISO date — train < cutoff, test >= cutoff")
+    # 🆕 Feature engineering — usados en engineering.py
+    rolling_windows: list[int] = [3, 24]
+    lag_hours:       list[int] = [1, 2, 3]
 
-    # Model hyperparameters
-    model_params: dict = Field(default_factory=lambda: {
-        "n_estimators":     500,
-        "max_depth":        6,
-        "learning_rate":    0.05,
-        "subsample":        0.8,
-        "colsample_bytree": 0.8,
-        "min_child_weight": 10,
-        "eval_metric":      "aucpr",
-        "early_stopping_rounds": 30,
-        "random_state":     42,
-        # scale_pos_weight is computed dynamically from data — not hardcoded here
-    })
+    # 🆕 Model hyperparameters — usados en trainer.py
+    xgb_n_estimators:        int   = 500
+    xgb_max_depth:           int   = 6
+    xgb_learning_rate:       float = 0.05
+    xgb_subsample:           float = 0.8
+    xgb_colsample_bytree:    float = 0.8
+    xgb_min_child_weight:    int   = 10
+    xgb_early_stopping:      int   = 30
 
-    # Registry
-    pr_auc_threshold: float = Field(default=0.30, ge=0.0, le=1.0)
-    register_model:   bool  = Field(default=True)
+    # 🆕 Serving
+    # 0.35 preferido sobre 0.5 — reduce falsos negativos (costosos en mantenimiento)
+    decision_threshold: float = 0.35
 
-    # Prediction threshold
-    # 0.35 preferred over 0.5 — reduces false negatives (costly in maintenance)
-    decision_threshold: float = Field(default=0.35)
 
-    class Config:
-        arbitrary_types_allowed = True
+settings = Settings()

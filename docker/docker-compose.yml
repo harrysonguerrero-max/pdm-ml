@@ -1,5 +1,6 @@
-version: "3.9"
 services:
+
+  # ── 1. MLflow Tracking Server ──────────────────────────────────────────────
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.11.0
     container_name: pdm-mlflow
@@ -8,7 +9,9 @@ services:
     volumes:
       - mlflow-data:/mlflow
     command: >
-      mlflow server --host 0.0.0.0 --port 5000
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlflow/artifacts
     healthcheck:
@@ -16,6 +19,28 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── 2. Training job — runs once, registers model, then exits ───────────────
+  train:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: pdm-train
+    command: ["python", "pipelines/train_pipeline.py"]
+    env_file:
+      - ../.env
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - ../data:/app/data          # CSVs en data/raw + outputs en data/processed
+      - mlflow-data:/mlflow        # artifacts compartidos con MLflow server
+    # restart: no — es un job, no un servicio long-running
+    restart: "no"
+
+  # ── 3. Serving API — arranca solo después de que train termine ─────────────
   api:
     build:
       context: ..
@@ -30,7 +55,11 @@ services:
     depends_on:
       mlflow:
         condition: service_healthy
+      train:
+        condition: service_completed_successfully  # espera que train termine OK
     volumes:
       - ../data:/app/data
+      - mlflow-data:/mlflow
+
 volumes:
   mlflow-data:

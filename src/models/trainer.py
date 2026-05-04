@@ -197,3 +197,48 @@ def promote_model(run_id: str, pr_auc: float) -> bool:
         f"name={settings.model_registry_name} | version={result.version}"
     )
     return True
+
+
+def train_and_track(
+    train_df: pl.DataFrame,
+    test_df: pl.DataFrame,
+    n_positives: int,
+    n_negatives: int,
+    register: bool = True,
+) -> str:
+    """
+    Public entry point called by train_pipeline.py.
+
+    Orchestrates:
+        1. train_xgboost()   — train + MLflow tracking
+        2. promote_model()   — conditional registry promotion
+
+    Why a wrapper instead of calling train_xgboost directly?
+        The pipeline should not know about internal MLflow details.
+        This function is the boundary between pipeline orchestration
+        and model training logic.
+
+    Args:
+        train_df:    Labeled training DataFrame (output of label_failures).
+        test_df:     Labeled test DataFrame.
+        n_positives: Count of positive labels in train_df (precomputed in pipeline).
+        n_negatives: Count of negative labels in train_df (precomputed in pipeline).
+        register:    Whether to attempt Model Registry promotion.
+
+    Returns:
+        MLflow run_id string.
+    """
+    # scale_pos_weight passed as override so train_xgboost uses
+    # the value computed from training data only (already validated by pipeline)
+    spw = round(n_negatives / max(n_positives, 1), 2)
+
+    model, metrics, run_id = train_xgboost(
+        train_df=train_df,
+        test_df=test_df,
+        params={"scale_pos_weight": spw},
+    )
+
+    if register:
+        promote_model(run_id=run_id, pr_auc=metrics["pr_auc"])
+
+    return run_id

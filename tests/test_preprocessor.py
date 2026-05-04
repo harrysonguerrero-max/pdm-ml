@@ -62,8 +62,13 @@ def test_component_age_columns_present(all_tables):
 
 def test_component_age_non_negative(all_tables):
     result = build_preprocessed_table(all_tables)
-    for col in [c for c in result.columns if c.startswith("hours_since_")]:
-        assert result[col].min() >= 0, f"Negative age in {col}"
+    age_cols = [c for c in result.columns if c.startswith("hours_since_")]
+    negatives = result.select(age_cols).select(
+        pl.col(age_cols).min().name.prefix("min_")
+    )
+    for col in age_cols:
+        min_val = negatives[f"min_{col}"].item()
+        assert min_val is not None and min_val >= 0, f"Negative age in {col}"
 
 
 def test_machine_metadata_joined(all_tables):

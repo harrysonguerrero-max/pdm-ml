@@ -3,7 +3,7 @@ train_pipeline.py
 =================
 Entry point for the end-to-end training pipeline.
 
-Execution:
+Usage:
     python pipelines/train_pipeline.py
     python pipelines/train_pipeline.py --config configs/train_config.yaml  (optional)
 
@@ -22,65 +22,36 @@ import argparse
 import sys
 from pathlib import Path
 
-# ── Make src importable when running from project root ──────────────────────
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import polars as pl
 from loguru import logger
 
-from src.config import TrainConfig
-from src.data.loader import load_raw_data, validate_schema
+from src.config import settings
+from src.data.loader import load_all
 from src.features.engineering import build_feature_table, label_failures
 from src.models.trainer import train_and_track
-from src.models.evaluator import evaluate_model, log_evaluation_report
-
-
-# ── Constants ────────────────────────────────────────────────────────────────
-PIPELINE_NAME = "pdm-training-pipeline"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PdM ML Training Pipeline")
     parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=Path("data/raw"),
-        help="Directory containing raw CSV files (default: data/raw)",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("data/processed"),
-        help="Directory to write processed artifacts (default: data/processed)",
-    )
-    parser.add_argument(
-        "--experiment",
+        "--cutoff",
         type=str,
-        default="pdm-predictive-maintenance",
-        help="MLflow experiment name",
+        default=settings.train_cutoff_date,
+        help=f"Temporal split date (default: {settings.train_cutoff_date})",
     )
     parser.add_argument(
         "--window-hours",
         type=int,
-        default=24,
-        help="Failure prediction window in hours (default: 24)",
+        default=settings.prediction_window_hours,
+        help=f"Failure prediction window in hours (default: {settings.prediction_window_hours})",
     )
     parser.add_argument(
-        "--cutoff-date",
-        type=str,
-        default="2015-10-01",
-        help="Temporal split date — train < cutoff, test >= cutoff (default: 2015-10-01)",
-    )
-    parser.add_argument(
-        "--pr-auc-threshold",
-        type=float,
-        default=0.30,
-        help="Minimum PR-AUC to register model in MLflow Registry (default: 0.30)",
-    )
-    parser.add_argument(
-        "--register",
+        "--no-register",
         action="store_true",
-        default=True,
-        help="Register model in MLflow Model Registry if threshold is met",
+        default=False,
+        help="Skip MLflow Model Registry promotion",
     )
     return parser.parse_args()
 
@@ -88,86 +59,87 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    # ── Config object ────────────────────────────────────────────────────────
-    config = TrainConfig(
-        data_dir=args.data_dir,
-        output_dir=args.output_dir,
-        experiment_name=args.experiment,
-        window_hours=args.window_hours,
-        cutoff_date=args.cutoff_date,
-        pr_auc_threshold=args.pr_auc_threshold,
-        register_model=args.register,
-    )
+    # Permite override de cutoff y window desde CLI sin tocar .env
+    cutoff       = args.cutoff
+    window_hours = args.window_hours
+    register     = not args.no_register
 
-    logger.info(f"Starting pipeline: {PIPELINE_NAME}")
-    logger.info(f"Config: {config.model_dump()}")
+    logger.info("=" * 55)
+    logger.info("  PDM TRAINING PIPELINE")
+    logger.info("=" * 55)
+    logger.info(f"  Cutoff date   : {cutoff}")
+    logger.info(f"  Window hours  : {window_hours}h")
+    logger.info(f"  Register model: {register}")
+    logger.info(f"  MLflow URI    : {settings.mlflow_tracking_uri}")
+    logger.info("=" * 55)
 
-    # ── Step 1: Load raw data ────────────────────────────────────────────────
+    # ── Step 1: Load ─────────────────────────────────────────────────────────
     logger.info("Step 1/6 — Loading raw data")
-    tables = load_raw_data(config.data_dir)
-    logger.info(
-        f"  telemetry: {tables['telemetry'].shape[0]:,} rows | "
-        f"  failures:  {tables['failures'].shape[0]} events | "
-        f"  machines:  {tables['machines'].shape[0]}"
-    )
+    tables = load_all(settings.data_raw_path)
+    # Schema validation ya ocurre dentro de load_all() — no se duplica
 
-    # ── Step 2: Validate schema ──────────────────────────────────────────────
-    logger.info("Step 2/6 — Validating schema")
-    validate_schema(tables)
-    logger.info("  Schema OK")
+    # ── Step 2: Log data stats ────────────────────────────────────────────────
+    logger.info("Step 2/6 — Data summary")
+    tel = tables["telemetry"]
+    n_machines   = tel["machineID"].n_unique()
+    span_days = tel.select(
+        (pl.col("datetime").max() - pl.col("datetime").min()).dt.total_days()
+    ).item()
+    logger.info(f"  telemetry : {tel.shape[0]:,} rows | {n_machines} machines | {span_days} days")
+    logger.info(f"  failures  : {tables['failures'].shape[0]} events")
+    logger.info(f"  errors    : {tables['errors'].shape[0]:,} events")
 
-    # ── Step 3: Build feature table ──────────────────────────────────────────
-    logger.info("Step 3/6 — Building feature table")
-    features_df = build_feature_table(tables, config)
-    logger.info(f"  Feature table: {features_df.shape[0]:,} rows × {features_df.shape[1]} cols")
+    # ── Step 3: Feature engineering ──────────────────────────────────────────
+    logger.info("Step 3/6 — Feature engineering")
+    features_df = build_feature_table(tables, window_hours=window_hours)
+    logger.info(f"  Shape: {features_df.shape[0]:,} rows × {features_df.shape[1]} cols")
 
-    # ── Step 4: Label failures ───────────────────────────────────────────────
+    # ── Step 4: Label failures ────────────────────────────────────────────────
     logger.info("Step 4/6 — Labeling failure windows")
-    labeled_df = label_failures(features_df, tables["failures"], config.window_hours)
-    n_pos = int(labeled_df["target"].sum())
-    n_neg = labeled_df.shape[0] - n_pos
-    pos_rate = n_pos / labeled_df.shape[0] * 100
-    logger.info(
-        f"  Labeled: {labeled_df.shape[0]:,} rows | "
-        f"positives: {n_pos:,} ({pos_rate:.2f}%) | "
-        f"negatives: {n_neg:,}"
+    labeled_df = label_failures(
+        features_df,
+        tables["failures"],
+        window_hours=window_hours,
     )
+    n_pos      = int(labeled_df["target"].sum())
+    n_tot      = labeled_df.shape[0]
+    pos_rate   = n_pos / n_tot * 100
+    logger.info(f"  Positives : {n_pos:,} ({pos_rate:.2f}%)")
+    logger.info(f"  Negatives : {n_tot - n_pos:,}")
+    logger.info(f"  scale_pos_weight ≈ {round((n_tot - n_pos) / max(n_pos, 1), 1)}")
 
-    # ── Step 5: Temporal train/test split ────────────────────────────────────
-    logger.info(f"Step 5/6 — Temporal split at {config.cutoff_date}")
-    train_df = labeled_df.filter(
-        pl.col("datetime") < pl.lit(config.cutoff_date).str.to_date()
-    )
-    test_df = labeled_df.filter(
-        pl.col("datetime") >= pl.lit(config.cutoff_date).str.to_date()
-    )
-    logger.info(
-        f"  Train: {train_df.shape[0]:,} rows | "
-        f"  Test:  {test_df.shape[0]:,} rows"
-    )
+    # ── Step 5: Temporal split ────────────────────────────────────────────────
+    logger.info(f"Step 5/6 — Temporal split at {cutoff}")
+    cutoff_dt = pl.lit(cutoff).str.to_date()
+    train_df  = labeled_df.filter(pl.col("datetime").cast(pl.Date) < cutoff_dt)
+    test_df   = labeled_df.filter(pl.col("datetime").cast(pl.Date) >= cutoff_dt)
 
-    # ── Save processed splits for reference ─────────────────────────────────
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    train_df.write_parquet(config.output_dir / "train.parquet")
-    test_df.write_parquet(config.output_dir / "test.parquet")
-    logger.info(f"  Splits saved to {config.output_dir}")
+    logger.info(f"  Train : {train_df.shape[0]:,} rows")
+    logger.info(f"  Test  : {test_df.shape[0]:,} rows")
 
-    # ── Step 6: Train + MLflow tracking ─────────────────────────────────────
+    # Guardar splits como parquet para referencia / reproducibilidad
+    settings.data_processed_path.mkdir(parents=True, exist_ok=True)
+    train_df.write_parquet(settings.data_processed_path / "train.parquet")
+    test_df.write_parquet(settings.data_processed_path / "test.parquet")
+    logger.info(f"  Splits saved → {settings.data_processed_path}")
+
+    # ── Step 6: Train + MLflow ────────────────────────────────────────────────
     logger.info("Step 6/6 — Training with MLflow tracking")
-    run_id, model = train_and_track(
+    run_id = train_and_track(
         train_df=train_df,
         test_df=test_df,
-        config=config,
+        n_positives=n_pos,
+        n_negatives=n_tot - n_pos,
+        register=register,
     )
-    logger.info(f"  MLflow run_id: {run_id}")
 
-    # ── Final report ─────────────────────────────────────────────────────────
-    logger.info("Pipeline completed successfully")
-    logger.info(f"  MLflow UI: http://localhost:5000 → Experiment: {config.experiment_name}")
+    logger.info("=" * 55)
+    logger.info("  PIPELINE COMPLETE")
     logger.info(f"  Run ID   : {run_id}")
+    logger.info(f"  MLflow   : {settings.mlflow_tracking_uri}")
+    logger.info(f"  Experiment: {settings.mlflow_experiment_name}")
+    logger.info("=" * 55)
 
 
 if __name__ == "__main__":
-    # ── This import needs to be here to avoid circular import issues
-    import polars as pl
     main()
