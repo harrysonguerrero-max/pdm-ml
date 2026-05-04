@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Data
+data/raw/
+data/processed/
+*.parquet
+*.csv
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Env
+.env
+
+# Tests
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# OS
+.DS_Store

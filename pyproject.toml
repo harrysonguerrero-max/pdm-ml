@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "pdm-ml"
+version = "0.1.0"
+description = "Predictive Maintenance ML System — Walmart/Softtek Technical Challenge"
+requires-python = ">=3.11"
+dependencies = [
+    "polars>=0.20",
+    "xgboost>=2.0",
+    "scikit-learn>=1.4",
+    "mlflow>=2.11",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "loguru>=0.7",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "httpx",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
