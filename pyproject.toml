@@ -1,12 +1,12 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "pdm-ml"
 version = "0.1.0"
 description = "Predictive Maintenance ML System — Walmart/Softtek Technical Challenge"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "polars>=0.20",
     "xgboost>=2.0",
