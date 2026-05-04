@@ -4,8 +4,10 @@ Uses Polars for fast CSV reading.
 Validates required columns at load time — fail fast, fail loud.
 """
 from pathlib import Path
+
 import polars as pl
 from loguru import logger
+
 from src.config import settings
 
 _REQUIRED: dict[str, list[str]] = {

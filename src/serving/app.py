@@ -24,11 +24,11 @@ Architecture decisions:
   with sorted column names (see trainer.py _feature_columns).
   Order MUST match training — this is a common production bug.
 """
+import mlflow
+import mlflow.pyfunc
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from loguru import logger
-import mlflow
-import mlflow.pyfunc
 
 from src.config import settings
 from src.serving.schemas import HealthResponse, PredictionRequest, PredictionResponse

@@ -12,6 +12,7 @@ Why 24h window?
 """
 import polars as pl
 from loguru import logger
+
 from src.config import settings
 
 

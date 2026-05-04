@@ -11,7 +11,6 @@ Coverage:
     - Features are backward-looking (row 0 lag = filled, not null)
 """
 import polars as pl
-import pytest
 
 from src.features.engineering import (
     build_all_features,
@@ -19,7 +18,6 @@ from src.features.engineering import (
     build_rate_of_change,
     build_rolling_features,
 )
-
 
 # ── Rolling features ───────────────────────────────────────────────────────
 

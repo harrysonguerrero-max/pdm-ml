@@ -10,10 +10,11 @@ Coverage:
     - POST /predict validates required fields (422 on bad input)
     - Response schema fields are all present
 """
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
 
 from src.serving.app import app
 

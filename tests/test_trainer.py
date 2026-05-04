@@ -9,18 +9,17 @@ Coverage:
 - scale_pos_weight formula is correct (inline in train_xgboost)
 - train_and_track calls MLflow and returns a run_id string (mocked)
 """
-import numpy as np
-import polars as pl
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import polars as pl
+import pytest
+
 from src.models.trainer import (
-    temporal_train_test_split,
     _feature_columns,
+    temporal_train_test_split,
     train_and_track,
 )
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────────
 

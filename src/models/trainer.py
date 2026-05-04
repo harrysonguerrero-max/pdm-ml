@@ -33,7 +33,6 @@ import json
 
 import mlflow
 import mlflow.xgboost
-import numpy as np
 import polars as pl
 import xgboost as xgb
 from loguru import logger

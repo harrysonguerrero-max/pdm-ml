@@ -15,7 +15,6 @@ import pytest
 
 from src.data.loader import _parse_datetime, _validate_columns
 
-
 # ── Schema validation ──────────────────────────────────────────────────────
 
 

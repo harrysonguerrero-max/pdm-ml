@@ -3,6 +3,7 @@ Centralized configuration using Pydantic Settings.
 Values are loaded from .env file — no hardcoded credentials.
 """
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

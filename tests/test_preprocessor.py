@@ -10,11 +10,9 @@ Coverage:
     - No nulls in key columns after preprocessing
 """
 import polars as pl
-import pytest
 
 from src.data.preprocessor import (
     _add_machine_metadata,
-    _add_target,
     build_preprocessed_table,
 )
 
