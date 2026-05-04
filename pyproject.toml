@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pdm-ml"
 version = "0.1.0"
 description = "Predictive Maintenance ML System — Walmart/Softtek Technical Challenge"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "polars>=0.20",
@@ -25,9 +26,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
-    "pytest-cov",
-    "httpx",
-    "ruff",
+    "pytest-cov>=5",
+    "httpx>=0.27",          # required by FastAPI TestClient
+    "ruff>=0.4",
+    "pandas>=2.0",          # needed by mlflow autolog internals
 ]
 
 [tool.setuptools.packages.find]
@@ -36,7 +38,7 @@ include = ["src*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"   # matches requires-python
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
@@ -44,4 +46,12 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts  = "-v --tb=short"
+
+[tool.coverage.run]
+source  = ["src"]
+omit    = ["src/serving/schemas.py"]   # pure Pydantic — no logic to cover
+
+[tool.coverage.report]
+show_missing = true
+fail_under   = 60                      # CI fails if coverage drops below 60%

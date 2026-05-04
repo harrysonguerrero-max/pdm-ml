@@ -27,6 +27,7 @@ Architecture decisions:
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from loguru import logger
+import mlflow
 import mlflow.pyfunc
 
 from src.config import settings

@@ -99,3 +99,66 @@ def test_load_all_raises_when_data_dir_empty(tmp_path: Path):
     from src.data.loader import load_all
     with pytest.raises(FileNotFoundError):
         load_all(raw_path=tmp_path)
+
+
+# ── Integration-style: load functions with real temp CSVs ─────────────────
+
+def test_load_telemetry_returns_dataframe(tmp_path: Path):
+    """load_telemetry reads a valid CSV and returns a parsed DataFrame."""
+    csv = tmp_path / "PdM_telemetry.csv"
+    csv.write_text(
+        "datetime,machineID,volt,rotate,pressure,vibration\n"
+        "2015-01-01 00:00:00,1,170.0,450.0,95.0,40.0\n"
+        "2015-01-01 01:00:00,1,171.0,451.0,96.0,41.0\n"
+    )
+    from src.data.loader import load_telemetry
+    df = load_telemetry(raw_path=tmp_path)
+    assert isinstance(df, pl.DataFrame)
+    assert df.shape == (2, 6)
+    assert df.schema["datetime"] == pl.Datetime
+
+
+def test_load_telemetry_validates_columns(tmp_path: Path):
+    """load_telemetry raises ValueError if required columns are missing."""
+    csv = tmp_path / "PdM_telemetry.csv"
+    csv.write_text(
+        "datetime,machineID\n"
+        "2015-01-01 00:00:00,1\n"
+    )
+    from src.data.loader import load_telemetry
+    with pytest.raises(ValueError, match="faltantes"):
+        load_telemetry(raw_path=tmp_path)
+
+
+def test_load_errors_returns_dataframe(tmp_path: Path):
+    """_load reads errors CSV, parses datetime, validates columns."""
+    csv = tmp_path / "PdM_errors.csv"
+    csv.write_text(
+        "datetime,machineID,errorID\n"
+        "2015-01-01 02:00:00,1,error1\n"
+    )
+    from src.data.loader import _load
+    df = _load("errors", raw_path=tmp_path)
+    assert isinstance(df, pl.DataFrame)
+    assert df.schema["datetime"] == pl.Datetime
+
+
+def test_load_machines_no_datetime_parsing(tmp_path: Path):
+    """_load skips datetime parsing for machines table (no datetime col)."""
+    csv = tmp_path / "PdM_machines.csv"
+    csv.write_text(
+        "machineID,model,age\n"
+        "1,model1,5\n"
+        "2,model2,10\n"
+    )
+    from src.data.loader import _load
+    df = _load("machines", raw_path=tmp_path)
+    assert "datetime" not in df.columns
+    assert df.shape == (2, 3)
+
+
+def test_load_raises_file_not_found_for_errors(tmp_path: Path):
+    """_load raises FileNotFoundError when CSV is missing."""
+    from src.data.loader import _load
+    with pytest.raises(FileNotFoundError, match="Archivo no encontrado"):
+        _load("errors", raw_path=tmp_path)

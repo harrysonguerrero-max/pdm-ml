@@ -158,3 +158,73 @@ def test_health_healthy_when_model_loaded(mock_model_high_prob):
     r = client.get("/health")
     assert r.json()["status"] == "healthy"
     assert r.json()["model_loaded"] is True
+
+
+# ── load_model startup — successful load ───────────────────────────────────
+
+@pytest.fixture
+def mock_model_startup(monkeypatch):
+    """
+    Simulates a successful model load at startup.
+    Patches mlflow.pyfunc.load_model and MlflowClient.
+    """
+    import src.serving.app as app_module
+
+    mock = MagicMock()
+    mock.predict.return_value = np.array([0.75])
+
+    mock_client = MagicMock()
+    mock_version = MagicMock()
+    mock_version.version = "3"
+    mock_client.get_latest_versions.return_value = [mock_version]
+
+    monkeypatch.setattr("src.serving.app.mlflow.pyfunc.load_model", lambda uri: mock)
+    monkeypatch.setattr("src.serving.app.mlflow.tracking.MlflowClient", lambda: mock_client)
+    monkeypatch.setattr("src.serving.app.mlflow.set_tracking_uri", lambda uri: None)
+
+    app_module._model = None
+    app_module._model_version = "not_loaded"
+
+    import asyncio
+    asyncio.get_event_loop().run_until_complete(app_module.load_model())
+
+    yield
+
+    app_module._model = None
+    app_module._model_version = "not_loaded"
+
+
+def test_load_model_sets_model(mock_model_startup):
+    """Successful startup sets _model to non-None."""
+    import src.serving.app as m
+    assert m._model is not None
+
+
+def test_load_model_sets_version(mock_model_startup):
+    """Successful startup sets _model_version from Registry."""
+    import src.serving.app as m
+    assert m._model_version == "3"
+
+
+def test_health_healthy_after_successful_load(mock_model_startup):
+    """After successful load, /health returns status=healthy."""
+    r = client.get("/health")
+    assert r.json()["status"] == "healthy"
+    assert r.json()["model_version"] == "3"
+
+
+# ── predict — internal exception path (lines 154-158) ─────────────────────
+
+def test_predict_returns_500_on_internal_error(mock_model_high_prob):
+    """
+    If model.predict raises an unexpected exception,
+    /predict must return 500 — not crash the server.
+    """
+    import src.serving.app as m
+    m._model.predict.side_effect = RuntimeError("unexpected numpy error")
+
+    r = client.post("/predict", json=VALID_PAYLOAD)
+    assert r.status_code == 500
+
+    # Cleanup
+    m._model.predict.side_effect = None

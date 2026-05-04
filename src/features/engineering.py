@@ -34,6 +34,8 @@ def build_rolling_features(df: pl.DataFrame) -> pl.DataFrame:
                 pl.col(s)
                   .rolling_mean(window_size=w)
                   .over("machineID")
+                  .forward_fill()
+                  .backward_fill()
                   .alias(f"{s}_mean_{w}h"),
                 pl.col(s)
                   .rolling_std(window_size=w)

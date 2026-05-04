@@ -88,15 +88,17 @@ def all_tables(telemetry_df, machines_df, errors_df, maint_df, failures_df) -> d
 @pytest.fixture
 def base_feature_df() -> pl.DataFrame:
     """
-    5-row single-machine DataFrame for testing feature engineering.
-    Realistic sensor values with slight variation to avoid all-zero stds.
+    30-row single-machine DataFrame for testing feature engineering.
+    Must have at least 24 rows to test 24h rolling windows without all-nulls.
     """
     base = datetime(2015, 1, 1)
+    import random
+    random.seed(42)
     return pl.DataFrame({
-        "machineID": [1] * 5,
-        "datetime":  [base + timedelta(hours=i) for i in range(5)],
-        "volt":      [170.0, 171.5, 168.0, 172.0, 169.5],
-        "rotate":    [450.0, 448.0, 453.0, 449.5, 451.0],
-        "pressure":  [95.0,  94.5,  96.0,  95.5,  94.0],
-        "vibration": [40.0,  40.5,  39.5,  41.0,  39.0],
+        "machineID": [1] * 30,
+        "datetime":  [base + timedelta(hours=i) for i in range(30)],
+        "volt":      [170.0 + random.uniform(-2, 2) for _ in range(30)],
+        "rotate":    [450.0 + random.uniform(-5, 5) for _ in range(30)],
+        "pressure":  [95.0  + random.uniform(-1, 1) for _ in range(30)],
+        "vibration": [40.0  + random.uniform(-1, 1) for _ in range(30)],
     })

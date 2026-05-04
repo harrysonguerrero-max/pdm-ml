@@ -142,4 +142,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+        logger.info("Pipeline completed successfully")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Pipeline failed: {e}")
+        sys.exit(1)
