@@ -60,9 +60,9 @@ def main() -> None:
     args = parse_args()
 
     # Permite override de cutoff y window desde CLI sin tocar .env
-    cutoff       = args.cutoff
+    cutoff = args.cutoff
     window_hours = args.window_hours
-    register     = not args.no_register
+    register = not args.no_register
 
     logger.info("=" * 55)
     logger.info("  PDM TRAINING PIPELINE")
@@ -81,7 +81,7 @@ def main() -> None:
     # ── Step 2: Log data stats ────────────────────────────────────────────────
     logger.info("Step 2/6 — Data summary")
     tel = tables["telemetry"]
-    n_machines   = tel["machineID"].n_unique()
+    n_machines = tel["machineID"].n_unique()
     span_days = tel.select(
         (pl.col("datetime").max() - pl.col("datetime").min()).dt.total_days()
     ).item()
@@ -101,9 +101,9 @@ def main() -> None:
         tables["failures"],
         window_hours=window_hours,
     )
-    n_pos      = int(labeled_df["target"].sum())
-    n_tot      = labeled_df.shape[0]
-    pos_rate   = n_pos / n_tot * 100
+    n_pos = int(labeled_df["target"].sum())
+    n_tot = labeled_df.shape[0]
+    pos_rate = n_pos / n_tot * 100
     logger.info(f"  Positives : {n_pos:,} ({pos_rate:.2f}%)")
     logger.info(f"  Negatives : {n_tot - n_pos:,}")
     logger.info(f"  scale_pos_weight ≈ {round((n_tot - n_pos) / max(n_pos, 1), 1)}")
@@ -111,8 +111,8 @@ def main() -> None:
     # ── Step 5: Temporal split ────────────────────────────────────────────────
     logger.info(f"Step 5/6 — Temporal split at {cutoff}")
     cutoff_dt = pl.lit(cutoff).str.to_date()
-    train_df  = labeled_df.filter(pl.col("datetime").cast(pl.Date) < cutoff_dt)
-    test_df   = labeled_df.filter(pl.col("datetime").cast(pl.Date) >= cutoff_dt)
+    train_df = labeled_df.filter(pl.col("datetime").cast(pl.Date) < cutoff_dt)
+    test_df = labeled_df.filter(pl.col("datetime").cast(pl.Date) >= cutoff_dt)
 
     logger.info(f"  Train : {train_df.shape[0]:,} rows")
     logger.info(f"  Test  : {test_df.shape[0]:,} rows")

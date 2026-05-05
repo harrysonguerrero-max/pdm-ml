@@ -24,15 +24,16 @@ Architecture decisions:
   with sorted column names (see trainer.py _feature_columns).
   Order MUST match training — this is a common production bug.
 """
+
 import mlflow
 import mlflow.pyfunc
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from loguru import logger
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.config import settings
 from src.serving.schemas import HealthResponse, PredictionRequest, PredictionResponse
-from prometheus_fastapi_instrumentator import Instrumentator
 
 # Decision threshold — lower than 0.5 because FN >> FP in cost
 _THRESHOLD = 0.35
@@ -51,7 +52,7 @@ app = FastAPI(
 
 Instrumentator().instrument(app).expose(app)
 # Module-level model state — loaded once at startup
-_model         = None
+_model = None
 _model_version = "not_loaded"
 
 
@@ -128,18 +129,14 @@ async def predict(req: PredictionRequest) -> PredictionResponse:
         raw_features = req.model_dump(exclude={"machine_id"})
 
         # Sort keys alphabetically — MUST match training column order
-        feature_vector = np.array(
-            [raw_features[k] for k in sorted(raw_features.keys())]
-        ).reshape(1, -1)
+        feature_vector = np.array([raw_features[k] for k in sorted(raw_features.keys())]).reshape(
+            1, -1
+        )
 
         raw_output = _model.predict(feature_vector)
 
         # Handle both numpy arrays and pandas Series
-        prob = float(
-            raw_output.values[0]
-            if hasattr(raw_output, "values")
-            else raw_output[0]
-        )
+        prob = float(raw_output.values[0] if hasattr(raw_output, "values") else raw_output[0])
 
         prediction = 1 if prob >= _THRESHOLD else 0
 

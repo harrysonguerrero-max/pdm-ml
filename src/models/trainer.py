@@ -29,6 +29,7 @@ Key decisions documented inline:
    - Model promoted to 'Production' stage if PR-AUC >= threshold.
    - Serving loads directly from Registry — no manual file management.
 """
+
 import json
 
 import mlflow
@@ -59,7 +60,7 @@ def temporal_train_test_split(
     """
     cutoff_date = cutoff_date or settings.train_cutoff_date
     train = df.filter(pl.col("datetime") < pl.lit(cutoff_date).str.to_datetime(format="%Y-%m-%d"))
-    test  = df.filter(pl.col("datetime") >= pl.lit(cutoff_date).str.to_datetime(format="%Y-%m-%d"))
+    test = df.filter(pl.col("datetime") >= pl.lit(cutoff_date).str.to_datetime(format="%Y-%m-%d"))
 
     logger.info(
         f"Temporal split at {cutoff_date} — "
@@ -88,26 +89,28 @@ def train_xgboost(
 
     X_train = train_df.select(feat_cols).to_numpy()
     y_train = train_df["target"].to_numpy()
-    X_test  = test_df.select(feat_cols).to_numpy()
-    y_test  = test_df["target"].to_numpy()
+    X_test = test_df.select(feat_cols).to_numpy()
+    y_test = test_df["target"].to_numpy()
 
     # Compute scale_pos_weight from training set only (never test set)
     n_neg = int((y_train == 0).sum())
     n_pos = int((y_train == 1).sum())
-    spw   = round(n_neg / max(n_pos, 1), 2)
-    logger.info(f"Class balance — negatives: {n_neg:,} | positives: {n_pos:,} | scale_pos_weight: {spw}")
+    spw = round(n_neg / max(n_pos, 1), 2)
+    logger.info(
+        f"Class balance — negatives: {n_neg:,} | positives: {n_pos:,} | scale_pos_weight: {spw}"
+    )
 
     base_params = {
-        "n_estimators":      300,
-        "max_depth":         6,
-        "learning_rate":     0.05,
-        "subsample":         0.8,
-        "colsample_bytree":  0.8,
-        "scale_pos_weight":  spw,
-        "eval_metric":       "aucpr",   # optimise for PR-AUC during training
-        "random_state":      42,
-        "n_jobs":            -1,
-        "verbosity":         0,
+        "n_estimators": 300,
+        "max_depth": 6,
+        "learning_rate": 0.05,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+        "scale_pos_weight": spw,
+        "eval_metric": "aucpr",  # optimise for PR-AUC during training
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbosity": 0,
     }
     final_params = {**base_params, **(params or {})}
 
@@ -119,16 +122,17 @@ def train_xgboost(
 
         # Log all params
         mlflow.log_params(final_params)
-        mlflow.log_param("n_features",    len(feat_cols))
-        mlflow.log_param("train_rows",    len(X_train))
-        mlflow.log_param("test_rows",     len(X_test))
-        mlflow.log_param("cutoff_date",   settings.train_cutoff_date)
+        mlflow.log_param("n_features", len(feat_cols))
+        mlflow.log_param("train_rows", len(X_train))
+        mlflow.log_param("test_rows", len(X_test))
+        mlflow.log_param("cutoff_date", settings.train_cutoff_date)
         mlflow.log_param("feature_names", json.dumps(feat_cols))
 
         # Train
         model = xgb.XGBClassifier(**final_params)
         model.fit(
-            X_train, y_train,
+            X_train,
+            y_train,
             eval_set=[(X_test, y_test)],
             verbose=False,
         )
@@ -173,9 +177,7 @@ def promote_model(run_id: str, pr_auc: float) -> bool:
     threshold = settings.promotion_pr_auc_threshold
 
     if pr_auc < threshold:
-        logger.warning(
-            f"Model NOT promoted — PR-AUC {pr_auc:.4f} < threshold {threshold:.4f}"
-        )
+        logger.warning(f"Model NOT promoted — PR-AUC {pr_auc:.4f} < threshold {threshold:.4f}")
         return False
 
     result = mlflow.register_model(

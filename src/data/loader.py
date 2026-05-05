@@ -3,6 +3,7 @@ Data loading and schema validation.
 Uses Polars for fast CSV reading.
 Validates required columns at load time — fail fast, fail loud.
 """
+
 from pathlib import Path
 
 import polars as pl
@@ -12,18 +13,18 @@ from src.config import settings
 
 _REQUIRED: dict[str, list[str]] = {
     "telemetry": ["datetime", "machineID", "volt", "rotate", "pressure", "vibration"],
-    "errors":    ["datetime", "machineID", "errorID"],
-    "maint":     ["datetime", "machineID", "comp"],
-    "failures":  ["datetime", "machineID", "failure"],
-    "machines":  ["machineID", "model", "age"],
+    "errors": ["datetime", "machineID", "errorID"],
+    "maint": ["datetime", "machineID", "comp"],
+    "failures": ["datetime", "machineID", "failure"],
+    "machines": ["machineID", "model", "age"],
 }
 
 _FILES: dict[str, str] = {
     "telemetry": "PdM_telemetry.csv",
-    "errors":    "PdM_errors.csv",
-    "maint":     "PdM_maint.csv",
-    "failures":  "PdM_failures.csv",
-    "machines":  "PdM_machines.csv",
+    "errors": "PdM_errors.csv",
+    "maint": "PdM_maint.csv",
+    "failures": "PdM_failures.csv",
+    "machines": "PdM_machines.csv",
 }
 
 
@@ -35,9 +36,7 @@ def _validate_columns(df: pl.DataFrame, name: str) -> None:
 
 def _parse_datetime(df: pl.DataFrame) -> pl.DataFrame:
     if df.schema.get("datetime") == pl.Utf8:
-        df = df.with_columns(
-            pl.col("datetime").str.to_datetime(format="%Y-%m-%d %H:%M:%S")
-        )
+        df = df.with_columns(pl.col("datetime").str.to_datetime(format="%Y-%m-%d %H:%M:%S"))
     return df
 
 
@@ -69,8 +68,8 @@ def load_all(raw_path: Path | None = None) -> dict[str, pl.DataFrame]:
     logger.info("=== Loading all datasets ===")
     return {
         "telemetry": load_telemetry(raw_path),
-        "errors":    _load("errors",   raw_path),
-        "maint":     _load("maint",    raw_path),
-        "failures":  _load("failures", raw_path),
-        "machines":  _load("machines", raw_path),
+        "errors": _load("errors", raw_path),
+        "maint": _load("maint", raw_path),
+        "failures": _load("failures", raw_path),
+        "machines": _load("machines", raw_path),
     }

@@ -10,6 +10,7 @@ Why 24h window?
     Operationally useful: gives maintenance teams time to intervene.
     Narrower windows increase precision but reduce recall.
 """
+
 import polars as pl
 from loguru import logger
 
@@ -24,11 +25,10 @@ def _add_error_counts(telemetry: pl.DataFrame, errors: pl.DataFrame) -> pl.DataF
         e = errors.filter(pl.col("errorID") == eid).select(["datetime", "machineID"])
         col = eid.replace("error", "error") + "_count"
         joined = (
-            result
-            .join(e.rename({"datetime": "err_dt"}), on="machineID", how="left")
+            result.join(e.rename({"datetime": "err_dt"}), on="machineID", how="left")
             .filter(
-                (pl.col("err_dt") <= pl.col("datetime")) &
-                (pl.col("err_dt") > pl.col("datetime") - pl.duration(hours=24))
+                (pl.col("err_dt") <= pl.col("datetime"))
+                & (pl.col("err_dt") > pl.col("datetime") - pl.duration(hours=24))
             )
             .group_by(["machineID", "datetime"])
             .agg(pl.len().alias(col))
@@ -47,12 +47,9 @@ def _add_component_ages(telemetry: pl.DataFrame, maint: pl.DataFrame) -> pl.Data
         col = f"hours_since_{comp}"
         m = maint.filter(pl.col("comp") == comp).select(["datetime", "machineID"])
         joined = (
-            result
-            .join(m.rename({"datetime": "maint_dt"}), on="machineID", how="left")
+            result.join(m.rename({"datetime": "maint_dt"}), on="machineID", how="left")
             .filter(pl.col("maint_dt") <= pl.col("datetime"))
-            .with_columns(
-                ((pl.col("datetime") - pl.col("maint_dt")).dt.total_hours()).alias(col)
-            )
+            .with_columns(((pl.col("datetime") - pl.col("maint_dt")).dt.total_hours()).alias(col))
             .group_by(["machineID", "datetime"])
             .agg(pl.col(col).min())
         )
@@ -66,11 +63,10 @@ def _add_target(telemetry: pl.DataFrame, failures: pl.DataFrame, window_hours: i
     """Binary target: 1 if machine fails in next N hours."""
     f = failures.select(["machineID", "datetime"]).rename({"datetime": "fail_dt"})
     joined = (
-        telemetry
-        .join(f, on="machineID", how="left")
+        telemetry.join(f, on="machineID", how="left")
         .filter(
-            (pl.col("fail_dt") > pl.col("datetime")) &
-            (pl.col("fail_dt") <= pl.col("datetime") + pl.duration(hours=window_hours))
+            (pl.col("fail_dt") > pl.col("datetime"))
+            & (pl.col("fail_dt") <= pl.col("datetime") + pl.duration(hours=window_hours))
         )
         .group_by(["machineID", "datetime"])
         .agg(pl.len().alias("_has_failure"))
@@ -80,19 +76,17 @@ def _add_target(telemetry: pl.DataFrame, failures: pl.DataFrame, window_hours: i
     result = telemetry.join(joined, on=["machineID", "datetime"], how="left")
     result = result.with_columns(pl.col("target").fill_null(0).cast(pl.Int8))
     pos = result["target"].sum()
-    logger.info(f"Target: {pos:,} positives / {result.shape[0]:,} rows ({pos/result.shape[0]*100:.2f}%)")
+    logger.info(
+        f"Target: {pos:,} positives / {result.shape[0]:,} rows ({pos / result.shape[0] * 100:.2f}%)"
+    )
     return result
 
 
 def _add_machine_metadata(df: pl.DataFrame, machines: pl.DataFrame) -> pl.DataFrame:
     """Join model type and age (static per machine)."""
-    meta = (
-        machines
-        .with_columns(
-            pl.col("model").str.extract(r"(\d+)", 0).cast(pl.Int32).alias("model_id")
-        )
-        .select(["machineID", "model_id", "age"])
-    )
+    meta = machines.with_columns(
+        pl.col("model").str.extract(r"(\d+)", 0).cast(pl.Int32).alias("model_id")
+    ).select(["machineID", "model_id", "age"])
     return df.join(meta, on="machineID", how="left")
 
 

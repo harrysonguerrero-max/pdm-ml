@@ -10,6 +10,7 @@ Coverage:
     - Column naming convention is correct
     - Features are backward-looking (row 0 lag = filled, not null)
 """
+
 import polars as pl
 
 from src.features.engineering import (
@@ -31,10 +32,16 @@ def test_rolling_features_add_16_columns(base_feature_df):
 def test_rolling_column_names_correct(base_feature_df):
     result = build_rolling_features(base_feature_df)
     expected = [
-        "volt_mean_3h", "volt_std_3h", "volt_mean_24h", "volt_std_24h",
-        "rotate_mean_3h", "rotate_std_3h",
-        "vibration_mean_3h", "vibration_std_3h",
-        "pressure_mean_24h", "pressure_std_24h",
+        "volt_mean_3h",
+        "volt_std_3h",
+        "volt_mean_24h",
+        "volt_std_24h",
+        "rotate_mean_3h",
+        "rotate_std_3h",
+        "vibration_mean_3h",
+        "vibration_std_3h",
+        "pressure_mean_24h",
+        "pressure_std_24h",
     ]
     for col in expected:
         assert col in result.columns, f"Missing rolling column: {col}"
@@ -121,9 +128,11 @@ def test_build_all_features_sorted_by_machine_datetime(base_feature_df):
 
 # ── build_feature_table + label_failures ──────────────────────────────────
 
+
 def test_build_feature_table_returns_dataframe(all_tables):
     """build_feature_table runs full pipeline including preprocessor."""
     from src.features.engineering import build_feature_table
+
     result = build_feature_table(all_tables, window_hours=24)
     assert isinstance(result, pl.DataFrame)
     assert result.shape[0] > 0
@@ -133,6 +142,7 @@ def test_build_feature_table_returns_dataframe(all_tables):
 def test_build_feature_table_has_engineered_columns(all_tables):
     """build_feature_table adds rolling + lag + delta on top of preprocessor."""
     from src.features.engineering import build_feature_table
+
     result = build_feature_table(all_tables, window_hours=24)
     assert "volt_mean_3h" in result.columns
     assert "volt_lag1" in result.columns
@@ -142,14 +152,15 @@ def test_build_feature_table_has_engineered_columns(all_tables):
 def test_label_failures_skips_if_target_exists(base_feature_df):
     """label_failures returns as-is when target column already present."""
     from src.features.engineering import label_failures
-    df_with_target = base_feature_df.with_columns(
-        pl.lit(0).cast(pl.Int8).alias("target")
+
+    df_with_target = base_feature_df.with_columns(pl.lit(0).cast(pl.Int8).alias("target"))
+    failures_dummy = pl.DataFrame(
+        {
+            "datetime": [base_feature_df["datetime"][0]],
+            "machineID": [1],
+            "failure": ["comp1"],
+        }
     )
-    failures_dummy = pl.DataFrame({
-        "datetime":  [base_feature_df["datetime"][0]],
-        "machineID": [1],
-        "failure":   ["comp1"],
-    })
     result = label_failures(df_with_target, failures_dummy, window_hours=24)
     # Must return the same df without modification
     assert "target" in result.columns
@@ -159,11 +170,14 @@ def test_label_failures_skips_if_target_exists(base_feature_df):
 def test_label_failures_fallback_adds_target(base_feature_df):
     """label_failures runs _add_target when target column is missing."""
     from src.features.engineering import label_failures
-    failures = pl.DataFrame({
-        "datetime":  [base_feature_df["datetime"][2]],
-        "machineID": [1],
-        "failure":   ["comp1"],
-    })
+
+    failures = pl.DataFrame(
+        {
+            "datetime": [base_feature_df["datetime"][2]],
+            "machineID": [1],
+            "failure": ["comp1"],
+        }
+    )
     result = label_failures(base_feature_df, failures, window_hours=24)
     assert "target" in result.columns
     unique_vals = set(result["target"].unique().to_list())

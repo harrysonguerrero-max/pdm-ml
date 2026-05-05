@@ -16,12 +16,13 @@ New columns added by build_all_features (~32 total):
   lag values per sensor (1h, 2h, 3h)   = 12
   rate of change (delta) per sensor     =  4
 """
+
 import polars as pl
 from loguru import logger
 
 _SENSORS = ["volt", "rotate", "pressure", "vibration"]
 _WINDOWS = [3, 24]
-_LAGS    = [1, 2, 3]
+_LAGS = [1, 2, 3]
 
 
 def build_rolling_features(df: pl.DataFrame) -> pl.DataFrame:
@@ -32,16 +33,16 @@ def build_rolling_features(df: pl.DataFrame) -> pl.DataFrame:
         for w in _WINDOWS:
             exprs += [
                 pl.col(s)
-                  .rolling_mean(window_size=w)
-                  .over("machineID")
-                  .forward_fill()
-                  .backward_fill()
-                  .alias(f"{s}_mean_{w}h"),
+                .rolling_mean(window_size=w)
+                .over("machineID")
+                .forward_fill()
+                .backward_fill()
+                .alias(f"{s}_mean_{w}h"),
                 pl.col(s)
-                  .rolling_std(window_size=w)
-                  .over("machineID")
-                  .fill_null(0.0)
-                  .alias(f"{s}_std_{w}h"),
+                .rolling_std(window_size=w)
+                .over("machineID")
+                .fill_null(0.0)
+                .alias(f"{s}_std_{w}h"),
             ]
     df = df.with_columns(exprs)
     logger.info(f"Rolling features añadidas: {len(exprs)} columnas")
@@ -54,12 +55,7 @@ def build_lag_features(df: pl.DataFrame) -> pl.DataFrame:
     forward_fill + backward_fill handles NaN at series boundaries.
     """
     exprs = [
-        pl.col(s)
-          .shift(lag)
-          .over("machineID")
-          .forward_fill()
-          .backward_fill()
-          .alias(f"{s}_lag{lag}")
+        pl.col(s).shift(lag).over("machineID").forward_fill().backward_fill().alias(f"{s}_lag{lag}")
         for s in _SENSORS
         for lag in _LAGS
     ]
@@ -74,9 +70,7 @@ def build_rate_of_change(df: pl.DataFrame) -> pl.DataFrame:
     Abrupt changes often immediately precede failures.
     """
     exprs = [
-        (pl.col(s) - pl.col(s).shift(1).over("machineID"))
-          .fill_null(0.0)
-          .alias(f"{s}_delta")
+        (pl.col(s) - pl.col(s).shift(1).over("machineID")).fill_null(0.0).alias(f"{s}_delta")
         for s in _SENSORS
     ]
     df = df.with_columns(exprs)
@@ -100,6 +94,7 @@ def build_all_features(df: pl.DataFrame) -> pl.DataFrame:
 
 
 # ── Public API — importada por train_pipeline.py ──────────────────────────
+
 
 def build_feature_table(
     tables: dict[str, pl.DataFrame],
@@ -159,5 +154,6 @@ def label_failures(
 
     # Fallback si se llama sin haber pasado por build_feature_table
     from src.data.preprocessor import _add_target
+
     logger.warning("Target not found — running _add_target as fallback")
     return _add_target(features_df, failures, window_hours)

@@ -9,6 +9,7 @@ Coverage:
 - scale_pos_weight formula is correct (inline in train_xgboost)
 - train_and_track calls MLflow and returns a run_id string (mocked)
 """
+
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -23,24 +24,28 @@ from src.models.trainer import (
 
 # ── Fixtures ───────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def feature_df():
     """60-row feature DataFrame spanning Jan–Mar 2015."""
     base = datetime(2015, 1, 1)
     n = 60
-    return pl.DataFrame({
-        "machineID": [1] * n,
-        "datetime":  [base + timedelta(hours=i) for i in range(n)],
-        "volt":      [170.0] * n,
-        "rotate":    [450.0] * n,
-        "pressure":  [95.0] * n,
-        "vibration": [40.0] * n,
-        "volt_mean_3h": [170.0] * n,
-        "target":    [0] * 55 + [1] * 5,
-    })
+    return pl.DataFrame(
+        {
+            "machineID": [1] * n,
+            "datetime": [base + timedelta(hours=i) for i in range(n)],
+            "volt": [170.0] * n,
+            "rotate": [450.0] * n,
+            "pressure": [95.0] * n,
+            "vibration": [40.0] * n,
+            "volt_mean_3h": [170.0] * n,
+            "target": [0] * 55 + [1] * 5,
+        }
+    )
 
 
 # ── temporal_train_test_split ──────────────────────────────────────────────
+
 
 def test_temporal_split_returns_two_dataframes(feature_df):
     train, test = temporal_train_test_split(feature_df, cutoff_date="2015-01-03")
@@ -76,6 +81,7 @@ def test_temporal_split_preserves_columns(feature_df):
 
 # ── _feature_columns ───────────────────────────────────────────────────────
 
+
 def test_feature_columns_excludes_non_features(feature_df):
     cols = _feature_columns(feature_df)
     assert "machineID" not in cols
@@ -96,6 +102,7 @@ def test_feature_columns_returns_sorted_list(feature_df):
 
 # ── train_and_track (mocked MLflow) ───────────────────────────────────────
 
+
 @patch("src.models.trainer.mlflow")
 @patch("src.models.trainer.promote_model")
 def test_train_and_track_returns_run_id(mock_promote, mock_mlflow, feature_df):
@@ -115,7 +122,7 @@ def test_train_and_track_returns_run_id(mock_promote, mock_mlflow, feature_df):
         test_df=test,
         n_positives=n_pos,
         n_negatives=n_neg,
-        register=False,          # skip Registry promotion in tests
+        register=False,  # skip Registry promotion in tests
     )
     assert isinstance(run_id, str)
     assert len(run_id) > 0
@@ -125,12 +132,14 @@ def test_train_and_track_returns_run_id(mock_promote, mock_mlflow, feature_df):
 def test_promote_model_skips_below_threshold(mock_mlflow):
     """promote_model returns False when PR-AUC < threshold."""
     from src.models.trainer import promote_model
+
     result = promote_model(run_id="fake-run", pr_auc=0.01)
     assert result is False
     mock_mlflow.register_model.assert_not_called()
 
 
 # ── promote_model — successful promotion path ──────────────────────────────
+
 
 @patch("src.models.trainer.mlflow")
 def test_promote_model_registers_when_above_threshold(mock_mlflow):
@@ -175,11 +184,10 @@ def test_promote_model_archives_previous_version(mock_mlflow):
 
 # ── train_and_track — register=True path ──────────────────────────────────
 
+
 @patch("src.models.trainer.promote_model")
 @patch("src.models.trainer.mlflow")
-def test_train_and_track_calls_promote_when_register_true(
-    mock_mlflow, mock_promote, feature_df
-):
+def test_train_and_track_calls_promote_when_register_true(mock_mlflow, mock_promote, feature_df):
     """When register=True, promote_model must be called after training."""
     mock_run = MagicMock()
     mock_run.info.run_id = "run-promote-test"
@@ -204,9 +212,7 @@ def test_train_and_track_calls_promote_when_register_true(
 
 @patch("src.models.trainer.promote_model")
 @patch("src.models.trainer.mlflow")
-def test_train_and_track_skips_promote_when_register_false(
-    mock_mlflow, mock_promote, feature_df
-):
+def test_train_and_track_skips_promote_when_register_false(mock_mlflow, mock_promote, feature_df):
     """When register=False, promote_model must NOT be called."""
     mock_run = MagicMock()
     mock_run.info.run_id = "run-no-promote"

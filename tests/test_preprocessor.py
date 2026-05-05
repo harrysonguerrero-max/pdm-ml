@@ -9,6 +9,7 @@ Coverage:
     - Component age columns are present and non-negative
     - No nulls in key columns after preprocessing
 """
+
 import polars as pl
 
 from src.data.preprocessor import (
@@ -61,9 +62,7 @@ def test_component_age_columns_present(all_tables):
 def test_component_age_non_negative(all_tables):
     result = build_preprocessed_table(all_tables)
     age_cols = [c for c in result.columns if c.startswith("hours_since_")]
-    negatives = result.select(age_cols).select(
-        pl.col(age_cols).min().name.prefix("min_")
-    )
+    negatives = result.select(age_cols).select(pl.col(age_cols).min().name.prefix("min_"))
     for col in age_cols:
         min_val = negatives[f"min_{col}"].item()
         assert min_val is not None and min_val >= 0, f"Negative age in {col}"
@@ -72,7 +71,7 @@ def test_component_age_non_negative(all_tables):
 def test_machine_metadata_joined(all_tables):
     result = build_preprocessed_table(all_tables)
     assert "model_id" in result.columns
-    assert "age"      in result.columns
+    assert "age" in result.columns
 
 
 def test_no_nulls_in_core_columns(all_tables):
@@ -86,5 +85,5 @@ def test_no_nulls_in_core_columns(all_tables):
 def test_add_machine_metadata_adds_model_id_and_age(telemetry_df, machines_df):
     result = _add_machine_metadata(telemetry_df, machines_df)
     assert "model_id" in result.columns
-    assert "age"      in result.columns
+    assert "age" in result.columns
     assert result["age"].null_count() == 0

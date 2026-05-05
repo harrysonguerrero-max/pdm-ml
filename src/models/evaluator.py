@@ -17,6 +17,7 @@ Why PR-AUC over ROC-AUC?
     true negatives in its calculation. PR-AUC focuses only on the
     minority class — exactly what matters here.
 """
+
 from pathlib import Path
 
 import matplotlib
@@ -52,11 +53,11 @@ def evaluate_model(
     y_pred = model.predict(X_test)
 
     metrics = {
-        "pr_auc":    round(float(average_precision_score(y_test, y_prob)), 4),
-        "roc_auc":   round(float(roc_auc_score(y_test, y_prob)), 4),
-        "f2_score":  round(float(fbeta_score(y_test, y_pred, beta=2, zero_division=0)), 4),
+        "pr_auc": round(float(average_precision_score(y_test, y_prob)), 4),
+        "roc_auc": round(float(roc_auc_score(y_test, y_prob)), 4),
+        "f2_score": round(float(fbeta_score(y_test, y_pred, beta=2, zero_division=0)), 4),
         "precision": round(float(precision_score(y_test, y_pred, zero_division=0)), 4),
-        "recall":    round(float(recall_score(y_test, y_pred, zero_division=0)), 4),
+        "recall": round(float(recall_score(y_test, y_pred, zero_division=0)), 4),
     }
     logger.info(f"Evaluation metrics: {metrics}")
     return metrics

@@ -10,6 +10,7 @@ Coverage:
     - POST /predict validates required fields (422 on bad input)
     - Response schema fields are all present
 """
+
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -24,34 +25,60 @@ client = TestClient(app)
 
 VALID_PAYLOAD = {
     "machine_id": 1,
-    "volt": 170.0,      "rotate": 450.0,
-    "pressure": 95.0,   "vibration": 40.0,
+    "volt": 170.0,
+    "rotate": 450.0,
+    "pressure": 95.0,
+    "vibration": 40.0,
     # rolling 3h
-    "volt_mean_3h": 170.5,  "volt_std_3h": 1.2,
-    "rotate_mean_3h": 450.1,"rotate_std_3h": 0.8,
-    "pressure_mean_3h": 95.1,"pressure_std_3h": 0.5,
-    "vibration_mean_3h": 40.1,"vibration_std_3h": 0.3,
+    "volt_mean_3h": 170.5,
+    "volt_std_3h": 1.2,
+    "rotate_mean_3h": 450.1,
+    "rotate_std_3h": 0.8,
+    "pressure_mean_3h": 95.1,
+    "pressure_std_3h": 0.5,
+    "vibration_mean_3h": 40.1,
+    "vibration_std_3h": 0.3,
     # rolling 24h
-    "volt_mean_24h": 170.2, "volt_std_24h": 2.1,
-    "rotate_mean_24h": 449.9,"rotate_std_24h": 1.9,
-    "pressure_mean_24h": 95.2,"pressure_std_24h": 1.1,
-    "vibration_mean_24h": 40.0,"vibration_std_24h": 0.9,
+    "volt_mean_24h": 170.2,
+    "volt_std_24h": 2.1,
+    "rotate_mean_24h": 449.9,
+    "rotate_std_24h": 1.9,
+    "pressure_mean_24h": 95.2,
+    "pressure_std_24h": 1.1,
+    "vibration_mean_24h": 40.0,
+    "vibration_std_24h": 0.9,
     # lags
-    "volt_lag1": 170.1, "volt_lag2": 169.8, "volt_lag3": 170.3,
-    "rotate_lag1": 450.2,"rotate_lag2": 449.8,"rotate_lag3": 450.0,
-    "pressure_lag1": 94.8,"pressure_lag2": 95.2,"pressure_lag3": 95.0,
-    "vibration_lag1": 40.2,"vibration_lag2": 39.8,"vibration_lag3": 40.1,
+    "volt_lag1": 170.1,
+    "volt_lag2": 169.8,
+    "volt_lag3": 170.3,
+    "rotate_lag1": 450.2,
+    "rotate_lag2": 449.8,
+    "rotate_lag3": 450.0,
+    "pressure_lag1": 94.8,
+    "pressure_lag2": 95.2,
+    "pressure_lag3": 95.0,
+    "vibration_lag1": 40.2,
+    "vibration_lag2": 39.8,
+    "vibration_lag3": 40.1,
     # deltas
-    "volt_delta": 0.5, "rotate_delta": -0.3,
-    "pressure_delta": 0.2, "vibration_delta": -0.1,
+    "volt_delta": 0.5,
+    "rotate_delta": -0.3,
+    "pressure_delta": 0.2,
+    "vibration_delta": -0.1,
     # error counts
-    "error1_count": 0, "error2_count": 1, "error3_count": 0,
-    "error4_count": 0, "error5_count": 0,
+    "error1_count": 0,
+    "error2_count": 1,
+    "error3_count": 0,
+    "error4_count": 0,
+    "error5_count": 0,
     # component ages
-    "hours_since_comp1": 120, "hours_since_comp2": 240,
-    "hours_since_comp3": 60,  "hours_since_comp4": 180,
+    "hours_since_comp1": 120,
+    "hours_since_comp2": 240,
+    "hours_since_comp3": 60,
+    "hours_since_comp4": 180,
     # machine metadata
-    "model_id": 2, "age": 7,
+    "model_id": 2,
+    "age": 7,
 }
 
 
@@ -100,12 +127,13 @@ def test_predict_returns_422_on_invalid_machine_id():
 def mock_model_high_prob():
     """Injects a mock model returning probability 0.82 (above threshold 0.35)."""
     import src.serving.app as m
+
     mock = MagicMock()
     mock.predict.return_value = np.array([0.82])
-    m._model         = mock
+    m._model = mock
     m._model_version = "test-v1"
     yield
-    m._model         = None
+    m._model = None
     m._model_version = "not_loaded"
 
 
@@ -113,12 +141,13 @@ def mock_model_high_prob():
 def mock_model_low_prob():
     """Injects a mock model returning probability 0.10 (below threshold 0.35)."""
     import src.serving.app as m
+
     mock = MagicMock()
     mock.predict.return_value = np.array([0.10])
-    m._model         = mock
+    m._model = mock
     m._model_version = "test-v1"
     yield
-    m._model         = None
+    m._model = None
     m._model_version = "not_loaded"
 
 
@@ -147,9 +176,13 @@ def test_predict_response_has_all_required_fields(mock_model_high_prob):
     r = client.post("/predict", json=VALID_PAYLOAD)
     body = r.json()
     required_fields = [
-        "machine_id", "failure_probability", "prediction",
-        "prediction_label", "prediction_window_hours",
-        "model_version", "threshold_used",
+        "machine_id",
+        "failure_probability",
+        "prediction",
+        "prediction_label",
+        "prediction_window_hours",
+        "model_version",
+        "threshold_used",
     ]
     for field in required_fields:
         assert field in body, f"Missing field in response: {field}"
@@ -162,6 +195,7 @@ def test_health_healthy_when_model_loaded(mock_model_high_prob):
 
 
 # ── load_model startup — successful load ───────────────────────────────────
+
 
 @pytest.fixture
 def mock_model_startup(monkeypatch):
@@ -187,6 +221,7 @@ def mock_model_startup(monkeypatch):
     app_module._model_version = "not_loaded"
 
     import asyncio
+
     asyncio.get_event_loop().run_until_complete(app_module.load_model())
 
     yield
@@ -198,12 +233,14 @@ def mock_model_startup(monkeypatch):
 def test_load_model_sets_model(mock_model_startup):
     """Successful startup sets _model to non-None."""
     import src.serving.app as m
+
     assert m._model is not None
 
 
 def test_load_model_sets_version(mock_model_startup):
     """Successful startup sets _model_version from Registry."""
     import src.serving.app as m
+
     assert m._model_version == "3"
 
 
@@ -216,12 +253,14 @@ def test_health_healthy_after_successful_load(mock_model_startup):
 
 # ── predict — internal exception path (lines 154-158) ─────────────────────
 
+
 def test_predict_returns_500_on_internal_error(mock_model_high_prob):
     """
     If model.predict raises an unexpected exception,
     /predict must return 500 — not crash the server.
     """
     import src.serving.app as m
+
     m._model.predict.side_effect = RuntimeError("unexpected numpy error")
 
     r = client.post("/predict", json=VALID_PAYLOAD)
