@@ -32,6 +32,7 @@ from loguru import logger
 
 from src.config import settings
 from src.serving.schemas import HealthResponse, PredictionRequest, PredictionResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Decision threshold — lower than 0.5 because FN >> FP in cost
 _THRESHOLD = 0.35
@@ -48,6 +49,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+Instrumentator().instrument(app).expose(app)
 # Module-level model state — loaded once at startup
 _model         = None
 _model_version = "not_loaded"

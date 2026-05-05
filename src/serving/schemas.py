@@ -86,6 +86,7 @@ class PredictionRequest(BaseModel):
     hours_since_comp4: int = Field(default=0, ge=0)
 
     # Machine metadata
+    model_id: int = Field(..., ge=1, le=4, description="Machine model type (1-4)")
     age:      int = Field(..., ge=0, description="Machine age in years")
 
 

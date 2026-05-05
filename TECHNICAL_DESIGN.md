@@ -204,3 +204,31 @@ Kaggle authentication requirements.
 | Secrets | `.env` file | HashiCorp Vault / Azure Key Vault |
 | Monitoring | None | Prometheus + Grafana + Evidently |
 | Image registry | Local Docker | GCP Artifact Registry / Azure ACR |
+
+## Operational Runbooks
+
+### Model Rollback
+
+If a newly promoted model degrades in production, rollback restores the previous
+version in under 30 seconds without restarting the API:
+
+```bash
+make rollback        # demotes current Production → Archived, promotes last Archived → Production
+make registry-list   # inspect all registered versions and their stages
+```
+
+The rollback script (`scripts/rollback.py`) uses the MLflow Model Registry stage
+transitions. The API loads the model at startup — a rollback requires an API restart
+to take effect:
+
+```bash
+make rollback
+docker compose restart api    # or: make down && make up
+```
+
+### Degraded Mode
+
+If MLflow Registry is unreachable at API startup, the API enters **degraded mode**:
+- `GET /health` returns `{"status": "degraded", "model_loaded": false}`
+- `POST /predict` returns HTTP 503
+- No crash — the container stays alive and recovers on the next restart

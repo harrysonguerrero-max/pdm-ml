@@ -68,5 +68,22 @@ services:
     # Restart API if it crashes (model loading failure, OOM, etc.)
     restart: on-failure
 
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: pdm-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   mlflow-data:
+  prometheus-data:

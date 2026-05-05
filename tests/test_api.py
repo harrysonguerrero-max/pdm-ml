@@ -229,3 +229,15 @@ def test_predict_returns_500_on_internal_error(mock_model_high_prob):
 
     # Cleanup
     m._model.predict.side_effect = None
+
+
+def test_metrics_endpoint_returns_200():
+    """/metrics must be reachable and return Prometheus text format."""
+    r = client.get("/metrics")
+    assert r.status_code == 200
+
+
+def test_metrics_endpoint_returns_prometheus_format():
+    """Response must contain Prometheus metric declarations."""
+    r = client.get("/metrics")
+    assert "http_requests" in r.text or "# HELP" in r.text

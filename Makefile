@@ -56,6 +56,12 @@ train-local:   ## MLflow + train in one shot (local, no Docker)
 	sleep 3 && \
 	python pipelines/train_pipeline.py
 
+rollback:
+	python scripts/rollback.py
+
+registry-list:
+	python scripts/registry_list.py
+
 # ── Quality ───────────────────────────────────────────────────────────────────
 
 test:          ## Run test suite

@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Training
     train_cutoff_date:          str   = "2015-10-01"
     prediction_window_hours:    int   = 24
-    promotion_pr_auc_threshold: float = 0.50
+    promotion_pr_auc_threshold: float = 0.80
 
     # 🆕 Feature engineering — usados en engineering.py
     rolling_windows: list[int] = [3, 24]
