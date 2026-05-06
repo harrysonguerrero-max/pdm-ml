@@ -1,0 +1,8 @@
+
+notebooks/*.ipynb linguist-detectable=false
+
+# Excluir archivos generados y docs del conteo
+*.md linguist-documentation
+data/**  linguist-vendored
+*.egg-info/** linguist-generated
+pdm_ml.egg-info/** linguist-generated
