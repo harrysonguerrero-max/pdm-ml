@@ -202,6 +202,7 @@ Documented in Next Steps below.
 | Medium | **Per-component PR-AUC** breakdown in evaluator | Identifies which failure types (comp3, comp4) need more data |
 | Medium | **Prediction logging** to JSONL per API request | Full traceability; enables ground truth feedback loop |
 | Medium | **Hyperparameter optimisation** with Optuna | Systematic search vs. current manually-tuned defaults |
+| Medium | **DVC remote** (Google Drive or S3) | Enables `dvc pull` for one-command data download — eliminates manual Kaggle step |
 | Low | **Kubernetes deployment** with HPA autoscaling | Production-grade horizontal serving at scale |
 | Low | **Feature store** (Feast or Tecton) | Eliminates train/serve feature skew; single source of truth |
 | Low | **Triton Inference Server** | High-concurrency multi-model GPU/CPU serving |

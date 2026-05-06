@@ -8,56 +8,306 @@ error logs, maintenance history and machine metadata.
 
 ---
 
-## Quick Start (5 minutes)
+## Reproducibility — Step by Step
 
-```bash
-# 1. Clone and setup
-git clone https://github.com/harrysonguerrero-max/pdm-ml.git
-cd pdm-ml
-cp .env.example .env
-pip install -e ".[dev]"
-
-# 2. Download dataset (pick one method)
-```
-
-**Option A — Kaggle CLI (recommended)**
-
-```bash
-pip install kaggle
-kaggle datasets download arnabbiswas1/microsoft-azure-predictive-maintenance
-unzip microsoft-azure-predictive-maintenance.zip -d data/raw
-```
-
-**Option B — Manual**  
-Download from https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance  
-Extract the 5 CSVs into `data/raw/`.
-
-Expected files after download:
-```
-data/raw/PdMtelemetry.csv
-data/raw/PdMerrors.csv
-data/raw/PdMmaint.csv
-data/raw/PdMfailures.csv
-data/raw/PdMMachines.csv
-```
-
-```bash
-# 3. Full Docker demo (recommended for reviewers)
-make up                    # builds images, starts MLflow + API
-make logs                  # follow live output — see training in real time
-```
-
-| Service      | URL                          |
-|---|---|
-| MLflow UI    | http://localhost:5000         |
-| REST API     | http://localhost:8000         |
-| API Docs     | http://localhost:8000/docs    |
-| Metrics      | http://localhost:8000/metrics |
-
-> After `make up` completes, the training pipeline runs automatically and the model
-> is registered in MLflow under the **Production** stage.
+Two paths depending on your setup. **Path A (Docker) is recommended** — it requires
+zero Python configuration and runs everything in one command.
 
 ---
+
+### Path A — Docker (recommended)
+
+**Requirements**: [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+
+**Step 1 — Clone the repository**
+
+```bash
+git clone https://github.com/harrysonguerrero-max/pdm-ml.git
+cd pdm-ml
+```
+
+**Step 2 — Install `make`** (skip if already installed)
+
+```bash
+# Verify first — if it prints a version, skip this step:
+make --version
+```
+
+**macOS:**
+```bash
+brew install make
+# If brew is not installed: https://brew.sh — paste the one-liner from that page first
+```
+
+**Linux (Ubuntu / Debian):**
+```bash
+sudo apt-get update && sudo apt-get install -y make
+```
+
+**Windows — Scoop (recommended, no Administrator needed)**
+```powershell
+# 1. Set execution policy
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 2. Install Scoop
+iwr -useb get.scoop.sh | iex
+
+# 3. Add Scoop to PATH in current session
+$env:Path += ";$HOME\scoop\shims"
+
+# 4. Verify Scoop
+scoop --version
+
+# 5. Install make
+scoop install make
+
+# 6. Verify make
+make --version
+```
+
+> After step 3, `$env:Path` fix is only needed for the **current session**.
+> Open a **new PowerShell window** and `make` will work automatically from there.
+
+**Windows — Chocolatey (alternative, requires Administrator)**
+```powershell
+# 1. Run in PowerShell as Administrator:
+Set-ExecutionPolicy Bypass -Scope Process -Force; `
+[System.Net.ServicePointManager]::SecurityProtocol = `
+[System.Net.ServicePointManager]::SecurityProtocol -bor 3072; `
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# 2. Close and reopen PowerShell as Administrator, then:
+choco install make -y
+
+# 3. Verify:
+make --version
+```
+
+**Windows — Git Bash (zero install)**
+
+If you have [Git for Windows](https://gitforwindows.org/) installed:
+1. Open **Git Bash** (not PowerShell or CMD)
+2. `make` is already available — no installation needed
+3. Run all `make` commands from Git Bash
+
+**Step 3 — Copy the environment file**
+
+```bash
+# Linux / macOS / Git Bash:
+cp .env.example .env
+
+# Windows PowerShell:
+Copy-Item .env.example .env
+```
+
+**Step 4 — Download the dataset**
+
+Go to https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance,
+click **Download**, unzip and place the 5 CSV files inside `data/raw/`.
+
+Verify before continuing:
+
+```bash
+# Linux / macOS / Git Bash:
+ls data/raw/
+
+# Windows PowerShell:
+dir data\raw\
+
+# Must show:
+# PdM_telemetry.csv  PdM_errors.csv  PdM_maint.csv  PdM_failures.csv  PdM_Machines.csv
+```
+
+**Step 5 — Full pipeline in one command**
+
+```bash
+make train-up
+```
+
+> Cleans previous state, starts MLflow, runs training pipeline (~5–10 min),
+> registers model under **Production**, and starts the API.
+> First run takes longer due to Docker image build.
+
+**Step 6 — Watch training complete**
+
+```bash
+make logs
+# Wait until you see: "Model promoted to Production"
+# Press Ctrl+C to stop following logs — containers keep running
+```
+
+**Step 7 — Verify**
+
+```bash
+curl http://localhost:8000/health
+# Expected: {"status":"healthy","model_loaded":true,"model_version":"1"}
+```
+
+| Service | URL |
+|---|---|
+| MLflow UI | http://localhost:5000 |
+| REST API | http://localhost:8000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
+| Prometheus Metrics | http://localhost:8000/metrics |
+
+```bash
+make down        # stop containers (data persists)
+make demo-down   # stop containers + wipe all data (clean slate)
+```
+
+### Path B — Local Python (no Docker)
+
+**Requirements**: Python 3.10, 3.11 or 3.12.
+
+> `make` may not be available on Windows. Every step below shows
+> both the `make` shortcut and the full command so you can use whichever works.
+
+**Step 1 — Clone the repository**
+
+```bash
+git clone https://github.com/harrysonguerrero-max/pdm-ml.git
+cd pdm-ml
+```
+
+**Step 2 — Copy the environment file**
+
+```bash
+# Linux / macOS / Git Bash:
+cp .env.example .env
+
+# Windows PowerShell:
+Copy-Item .env.example .env
+```
+
+**Step 3 — Create and activate a virtual environment**
+
+```bash
+# Linux / macOS:
+python -m venv .venv
+source .venv/bin/activate
+
+# Windows — Command Prompt:
+python -m venv .venv
+.venv\Scripts\activate.bat
+
+# Windows — PowerShell:
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+> Your terminal prompt should now show `(.venv)`. This confirms the environment
+> is active. All `pip` and `python` commands from here run inside it.
+
+**Step 4 — Install dependencies**
+
+```bash
+pip install -e ".[dev]"
+# Takes ~1–2 minutes on first run
+```
+
+**Step 5 — Download the dataset**
+
+```bash
+# Optional: install Kaggle CLI to download automatically
+pip install kaggle
+# Place your token at ~/.kaggle/kaggle.json
+# Get it at: https://www.kaggle.com/settings → API → Create New Token
+kaggle datasets download arnabbiswas1/microsoft-azure-predictive-maintenance
+python -m zipfile -e microsoft-azure-predictive-maintenance.zip data/raw/
+```
+
+Or download manually from https://www.kaggle.com/datasets/arnabbiswas1/microsoft-azure-predictive-maintenance
+and place the 5 CSV files in `data/raw/`.
+
+**Step 6 — Start MLflow** (open a new terminal tab, keep it running)
+
+```bash
+# Activate the virtual environment in this new tab too:
+source .venv/bin/activate        # Linux/macOS
+.venv\Scripts\activate.bat       # Windows CMD
+.venv\Scripts\Activate.ps1       # Windows PowerShell
+
+# Then start MLflow:
+make mlflow
+# or without make:
+mlflow server \
+  --host 0.0.0.0 \
+  --port 5000 \
+  --backend-store-uri sqlite:///mlruns/mlflow.db \
+  --default-artifact-root mlruns/artifacts
+```
+
+**Step 7 — Run the training pipeline** (back in your original terminal)
+
+```bash
+make train
+# or without make:
+python pipelines/train_pipeline.py
+
+# Wait for: "Model promoted to Production — PR-AUC: 0.9994"
+```
+
+**Step 8 — Start the API**
+
+```bash
+make serve
+# or without make:
+uvicorn src.serving.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Step 9 — Verify**
+
+```bash
+curl http://localhost:8000/health
+# Expected: {"status":"healthy","model_loaded":true,"model_version":"1"}
+```
+
+| Service | URL |
+|---|---|
+| MLflow UI | http://localhost:5000 |
+| REST API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+| Metrics | http://localhost:8000/metrics |
+
+---
+
+## Available Commands
+
+### 🐳 Docker mode
+
+| Command | Description |
+|---|---|
+| `make train-up` | **Full pipeline**: clean → MLflow → train → API (one command) |
+| `make up` | Start MLflow + API + Prometheus (model must exist in Registry) |
+| `make train` | Run training job in Docker (MLflow must be running) |
+| `make down` | Stop all containers (data persists) |
+| `make demo-down` | Stop containers + delete volumes (clean slate) |
+| `make clean` | Full reset: containers + images + volumes + build cache |
+| `make logs` | Follow live logs from all containers |
+| `make logs-train` | Follow training job logs only |
+| `make logs-api` | Follow API logs only |
+
+### 💻 Local mode (no Docker)
+
+| Command | Description |
+|---|---|
+| `make install` | Install package + dev dependencies |
+| `make mlflow` | Start MLflow tracking server locally |
+| `make train-local` | Start MLflow in background + run training pipeline |
+| `make train` | Run training pipeline (MLflow must be running) |
+| `make serve` | Start API locally with hot-reload |
+
+### 🔬 Quality & Registry
+
+| Command | Description |
+|---|---|
+| `make test` | Run full test suite |
+| `make test-cov` | Run tests with coverage report |
+| `make lint` | Check code style with ruff |
+| `make format` | Auto-fix style issues |
+| `make check` | `lint` + `test` in one command (run before committing) |
+| `make rollback` | Demote current Production model → promote previous |
+| `make registry-list` | List all registered model versions and stages |
 
 ## Environment Variables
 

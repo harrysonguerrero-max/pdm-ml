@@ -66,11 +66,11 @@ via the `build_feature_table` orchestrator in the pipeline.
 ## Data Flow
 
 ```
-PdMtelemetry.csv  (876,100 rows, 6 cols)
-PdMerrors.csv     (3,919 rows, 3 cols)
-PdMmaint.csv      (3,286 rows, 3 cols)
-PdMfailures.csv   (761 rows, 3 cols)
-PdMMachines.csv   (100 rows, 3 cols)
+PdM_telemetry.csv  (876,100 rows, 6 cols)
+PdM_errors.csv     (3,919 rows, 3 cols)
+PdM_maint.csv      (3,286 rows, 3 cols)
+PdM_failures.csv   (761 rows, 3 cols)
+PdM_Machines.csv   (100 rows, 3 cols)
         │
         ▼ loader.py — schema validation, required columns, datetime parsing
         │
