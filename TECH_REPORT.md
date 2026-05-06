@@ -1,7 +1,7 @@
-Technical Report — Predictive Maintenance ML System
+# Technical Report — Predictive Maintenance ML System
 
-> **Run ID**: `e0f90246210543fe80fe7a5c404406b9`
-> **Experiment**: `predictive-maintenance` | **Model**: `pdm-xgboost v1` → `Production`
+> **Run ID**: `e0f90246210543fe80fe7a5c404406b9`  
+> **Experiment**: `pdm-predictive-maintenance` | **Model**: `pdm-failure-predictor v1` → `Production`  
 > **Reproduced with**: `make train`
 
 ---
@@ -32,7 +32,7 @@ is anchored to this cost asymmetry.
 | PdM_machines | 100 | 4 machine models; age range 0–20 years |
 
 After joining all tables and running the feature engineering pipeline:
-**876,100 rows × 50 feature columns + 1 target column.**
+**876,100 rows × 47 feature columns + 1 target column.**
 
 - **Positive rate**: 17,184 positives / 876,100 rows = **1.96%**
 - **Class ratio in train set**: 641,466 negatives / 13,134 positives → `scale_pos_weight = 48.84`
@@ -63,7 +63,7 @@ For a heavily imbalanced dataset, **PR-AUC baseline ≈ positive rate ≈ 0.020*
 | Always predict 1 (always alarm) | ~0.020 | 1.000 | ~0.020 |
 | Random classifier (at positive rate) | ~0.020 | ~0.500 | ~0.020 |
 
-> A useful model must significantly exceed **PR-AUC = 0.020**.
+> A useful model must significantly exceed **PR-AUC = 0.020**.  
 > The trained model achieves **PR-AUC = 0.9994 — 50× above baseline**.
 
 ---
@@ -79,6 +79,7 @@ For a heavily imbalanced dataset, **PR-AUC baseline ≈ positive rate ≈ 0.020*
 | **Recall** | **0.9988** | 99.9% of real failures are detected before they occur |
 | Decision threshold | 0.35 | Below 0.5 to bias toward recall; calibrated to FN > FP cost |
 | `scale_pos_weight` | 48.84 | Gradient re-weighting for 49:1 class imbalance; computed from train only |
+| Promotion threshold | **PR-AUC ≥ 0.80** | Model clears this bar with 0.9994; only models 40× above baseline reach Production |
 
 **Why are these results so high?**
 The Microsoft Azure PdM dataset was designed for benchmarking. Unlike real noisy
@@ -86,7 +87,7 @@ industrial data, the sensor signals (volt, rotate, pressure, vibration) change i
 a clean, consistent pattern before each failure event. The rolling features (mean,
 std, lag, delta) capture this degradation signal very effectively.
 
-Anti-leakage guarantee: the temporal split (cutoff `2015-10-01`), backward-only
+**Anti-leakage guarantee**: the temporal split (cutoff `2015-10-01`), backward-only
 features, and train-only `scale_pos_weight` ensure these metrics reflect genuine
 generalisation to unseen future data — not data contamination.
 
@@ -108,40 +109,46 @@ generalisation to unseen future data — not data contamination.
 
 All features are **backward-looking by construction** — they use only information
 available at the time of prediction. The target label is the only forward-looking
-element, which is correct by design (it is what we are predicting).
+element, which is correct by design.
 
 ---
 
 ## 7. Key Decisions and Trade-offs
 
-**Binary vs. multiclass**
+**Binary vs. multiclass**  
 Binary classification was chosen for operational clarity and simplicity. A multiclass
 formulation (predicting which component fails) adds modelling complexity without
 proportional value for the 24-hour prediction window.
 
-**XGBoost vs. neural networks**
+**XGBoost vs. neural networks**  
 XGBoost consistently outperforms deep learning on structured tabular data at this
 scale. Training completed in under 5 minutes on CPU with no GPU requirement. The
 results (PR-AUC = 0.9994) validate this choice decisively.
 
-**`scale_pos_weight = 48.84` vs. SMOTE**
+**`scale_pos_weight = 48.84` vs. SMOTE**  
 SMOTE generates synthetic minority samples. If applied before the temporal split,
 synthetic samples can encode future distribution patterns into the training set —
 a subtle but real leakage vector. `scale_pos_weight` adjusts the XGBoost gradient
 update function directly, with zero leakage risk. Value computed from training rows only.
 
-**Decision threshold 0.35 vs. 0.50**
+**Decision threshold 0.35 vs. 0.50**  
 At 1.96% positive rate, the default threshold of 0.5 biases the model toward
 predicting "no failure". A threshold of 0.35 increases recall (achieved 0.9988) at
 a minor precision cost (0.9885). This trade-off is correct for predictive maintenance
 where unplanned downtime costs 5–10× more than a false alarm.
 
-**Temporal split vs. k-fold cross-validation**
+**Promotion threshold PR-AUC ≥ 0.80**  
+Raised from 0.75 to 0.80. A model must be 40× above the ~0.020 random-classifier
+baseline to be automatically promoted to Production. This prevents degraded models
+(e.g., trained on corrupt features or with a broken pipeline run) from replacing the
+current Production version. The current model (0.9994) clears this gate comfortably.
+
+**Temporal split vs. k-fold cross-validation**  
 k-fold with shuffling allows the model to train on future sensor readings to predict
 past failures, inflating metrics by 15–30% and producing a model that fails in
 production. The hard cutoff at `2015-10-01` simulates real deployment conditions.
 
-**Polars vs. Pandas**
+**Polars vs. Pandas**  
 Rolling window operations on 876,100 rows with `group_by + rolling` chains completed
 in ~5 seconds with Polars. The explicit API (no implicit index, immutable DataFrames)
 also reduces subtle mutation bugs common in Pandas time-series pipelines.
@@ -161,6 +168,13 @@ mode. Accuracy should never be the primary metric for imbalanced datasets.
 **`scale_pos_weight` matters more than model architecture.** Switching from default
 XGBoost (no imbalance handling) to `scale_pos_weight = 48.84` produced the largest
 single performance improvement on this dataset.
+
+**Feature order in serving must match training.** The `(1, 46) ≠ (-1, 47)` error
+encountered during serving was caused by `machine_id` being excluded from the schema
+and by numpy array construction relying on alphabetical sort rather than model-defined
+column order. Fixed by: (1) adding `model_id` to `PredictionRequest`, (2) passing a
+named `pandas.DataFrame` to `mlflow.pyfunc.predict()` — column order resolved by name,
+not position. This pattern eliminates train/serve feature skew permanently.
 
 **MLflow Registry pays off immediately.** Programmatic model promotion, version
 tracking, and Registry-based serving eliminated all manual model file management.
@@ -183,6 +197,7 @@ Documented in Next Steps below.
 | High | **Migrate MLflow stages → model aliases** | Removes deprecation warning; future-proof Registry API |
 | High | **Apache Airflow DAGs** for weekly scheduled retraining | Removes manual `make train` dependency |
 | High | **Evidently AI** for input feature drift detection | Catches distribution shift before accuracy degrades |
+| Medium | **Prometheus + Grafana dashboard** | Visualise p99 latency, request rate, error rate from `/metrics` |
 | Medium | **SHAP feature importance** logged as MLflow artifact | Explainability for maintenance stakeholders |
 | Medium | **Per-component PR-AUC** breakdown in evaluator | Identifies which failure types (comp3, comp4) need more data |
 | Medium | **Prediction logging** to JSONL per API request | Full traceability; enables ground truth feedback loop |
